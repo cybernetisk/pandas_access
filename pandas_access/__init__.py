@@ -34,7 +34,7 @@ def _extract_dtype(data_type):
     if data_type.startswith('double'):
         return np.float_
     elif data_type.startswith('long'):
-        return np.int_
+        return pd.Int64Dtype()
     else:
         return None
 
