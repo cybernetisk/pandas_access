@@ -1,30 +1,26 @@
 from . import MdbColumn, MdbTable
 import numpy as np
+import pandas as pd
 # import pytest
 
 
 def test_column_parsing():
     col = MdbColumn.try_parse_schema_line(" [myName]  Integer NOT NULL,")
     assert col is not None
-    assert col.get_dtype() == np.int_
-    assert col.get_dtype(promote='int_to_float') == np.float_
-    assert col.get_dtype(promote='nullable_int_to_float') == np.int_
+    print(col.get_dtype())
+    assert col.get_dtype() == pd.Int32Dtype()
     assert col.is_not_null() is True
     assert col.maybe_null() is False
 
     col = MdbColumn.try_parse_schema_line(" [myName]  Integer,")
     assert col is not None
-    assert col.get_dtype() == np.int_
-    assert col.get_dtype(promote='int_to_float') == np.float_
-    assert col.get_dtype(promote='nullable_int_to_float') == np.float_
+    assert col.get_dtype() == pd.Int32Dtype()
     assert col.is_not_null() is False
     assert col.maybe_null() is True
 
     col = MdbColumn.try_parse_schema_line(" [myName]  DateTime")
     assert col is not None
     assert col.get_dtype() == np.str_
-    assert col.get_dtype(promote='int_to_float') == np.str_
-    assert col.get_dtype(promote='nullable_int_to_float') == np.str_
     assert col.is_not_null() is False
     assert col.maybe_null() is True
 
@@ -51,4 +47,4 @@ def test_table_parsing():
     assert cols[4].get_name() == 'Value'
     assert cols[4].get_dtype() == np.float_
     assert cols[5].get_name() == 'Number'
-    assert cols[5].get_dtype() == np.int64
+    assert cols[5].get_dtype() == pd.Int64Dtype()

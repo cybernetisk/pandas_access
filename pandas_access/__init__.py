@@ -30,11 +30,10 @@ class MdbTable:
             if c.get_name() in newDtypes:
                 c.set_dtype(newDtypes[c.get_name()])
 
-    def get_dtypes(self, promote=None):
+    def get_dtypes(self):
         """ return a dictionary of {columnName: dataType}
-        :param promote: see MdbColumn.get_dtype
         """
-        return {c.get_name(): c.get_dtype(promote) for c in self._columns}
+        return {c.get_name(): c.get_dtype() for c in self._columns}
 
     def date_field_indices(self):
         """ returns the column indices of all datetime fields """
@@ -76,8 +75,8 @@ class MdbColumn:
     __type_conversions = {
         'single': np.float32,
         'double': np.float64,
-        'long integer': np.int64,
-        'integer': np.int_,
+        'long integer': pd.Int64Dtype(),
+        'integer': pd.Int32Dtype(),
         'text': np.str_,
         'long text': np.str_,
         'boolean': np.bool_,
@@ -115,17 +114,7 @@ class MdbColumn:
     def get_name(self):
         return self._name
 
-    def get_dtype(self, promote=None):
-        """
-        Returns the data type of a column, possibly promoted to a different
-        type - promotions are useful for NAN values where no NAN is supported
-        in pandas.
-        :param promote: Valid values: 'int_to_float', 'nullable_int_to_float'
-        """
-        if self._dtype in [np.int_, np.int64]:
-            if (promote == 'nullable_int_to_float' and self.maybe_null()) or \
-               (promote == 'int_to_float'):
-                return np.float_
+    def get_dtype(self):
         return self._dtype
 
     def set_dtype(self, newtype):
@@ -181,13 +170,6 @@ def read_table(rdb_file, table_name, *args, **kwargs):
     inferences. The `schema_encoding and implicit_string keyword arguments are
     passed through to `read_schema`.
 
-    In case you have integer columns with NaNs (not supported by pandas), you
-    can either manually set the corresponding columns to float by passing the
-    `dtype` argument. By passing `promote='int_to_float'`, all ints are
-    automatically converted to float64. For NOT NULL int columns, it is safe
-    to keep them as int. To promote only int columns that aren't marked NOT
-    NULL, pass `promote='nullable_int_to_float'`to `read_table`.
-
     I recommend setting `chunksize=k`, where k is some reasonable number of
     rows. This is a simple interface, that doesn't do basic things like
     counting the number of rows ahead of time. You may inadvertently start
@@ -204,24 +186,13 @@ def read_table(rdb_file, table_name, *args, **kwargs):
     if kwargs.pop('converters_from_schema', True):
         specified_dtypes = kwargs.pop('dtype', {})
         schema_encoding = kwargs.pop('schema_encoding', 'utf8')
-        promote = kwargs.pop('promote', None)
         schemas = read_schema(rdb_file, schema_encoding,
                               kwargs.pop('implicit_string', True))
         table = schemas[table_name]
         table.update_dtypes(specified_dtypes)
-        kwargs['dtype'] = table.get_dtypes(promote)
+        kwargs['dtype'] = table.get_dtypes()
         kwargs['parse_dates'] = table.date_field_indices()
 
     cmd = ['mdb-export', '-D', '%Y-%m-%d %H:%M:%S', rdb_file, table_name]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    try:
-        return pd.read_csv(proc.stdout, *args, **kwargs)
-    except ValueError as ve:
-        if 'Integer column has NA values' in str(ve):
-            msg = str(ve).splitlines()[-1]
-            raise ValueError("\n".join((
-                msg,
-                "Consider passing promote='nullable_int_to_float' or",
-                "passing promote='int_to_float' to read_table")))
-        else:
-            raise ve
+    return pd.read_csv(proc.stdout, *args, **kwargs)
